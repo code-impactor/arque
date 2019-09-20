@@ -10,7 +10,7 @@ $ twine upload dist/*
 import codecs
 import setuptools
 
-ARQUE_VERSION = '1.0.2'
+ARQUE_VERSION = '1.0.3'
 ARQUE_DOWNLOAD_URL = (
         'https://github.com/code-impactor/arque/' + ARQUE_VERSION
 )
@@ -26,23 +26,22 @@ def read_file(filename):
 
 setuptools.setup(
     name='arque',
+    packages=['arque'],
     version=ARQUE_VERSION,
-    scripts=['arque'],
-    license='MIT',
-    author="Andrei Roskach",
-    author_email="code.impactor@gmail.com",
     description="Asyncio Reliable Queue (based on redis)",
     long_description=read_file('README.md'),
     long_description_content_type="text/markdown",
+    license='MIT',
+    author="Andrei Roskach",
+    author_email="code.impactor@gmail.com",
     url="https://github.com/code-impactor/arque",
     download_url=ARQUE_DOWNLOAD_URL,
-    packages=['arque'],
-    install_requires=['aioredis >= 1.2.0'],
-    platforms=['Any'],
     keywords=[
         'asyncio', 'redis', 'reliable', 'queue', 'asynchronous', 'python', 'reliable-queue', 'work-queue', 'delay',
         'delayed', 'jobs', 'delayed-queue'
     ],
+    install_requires=['aioredis >= 1.2.0'],
+    platforms=['Any'],
     classifiers=[
         'Intended Audience :: Developers',
         "Programming Language :: Python :: 3.7",
