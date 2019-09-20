@@ -10,7 +10,7 @@ $ twine upload dist/*
 import codecs
 import setuptools
 
-ARQUE_VERSION = '1.0.0'
+ARQUE_VERSION = '1.0.2'
 ARQUE_DOWNLOAD_URL = (
         'https://github.com/code-impactor/arque/' + ARQUE_VERSION
 )
