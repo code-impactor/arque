@@ -1,7 +1,7 @@
 # arque
 Asyncio Reliable Queue (based on redis)
 
-Inspired by Tom DeWire's article "Reliable Queueing in Redis (Part 1)" [[1]](#ref1) [[2]](#ref2) and the "torrelque" python module of [[3]](#ref3).
+Inspired by Tom DeWire's article "Reliable Queueing in Redis (Part 1)" [[1]](#ref1) [[2]](#ref2) and the "torrelque" python module [[3]](#ref3).
 
 #### Features:
     - Queue with repeats, delays and failed state

@@ -12,7 +12,7 @@ import setuptools
 
 ARQUE_VERSION = '1.0.3'
 ARQUE_DOWNLOAD_URL = (
-        'https://github.com/code-impactor/arque/' + ARQUE_VERSION
+        'https://github.com/code-impactor/arque/releases/tag/' + ARQUE_VERSION
 )
 
 
