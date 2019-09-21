@@ -85,11 +85,11 @@ class Arque:
 
         return result
 
-    async def enqueue(self, task, task_timeout=None, delay=None):
+    async def enqueue(self, task, task_id=None, task_timeout=None, delay=None):
         """ Enqueue arbitrary (though serializable) *task* object into
-        working queue. Return UUID to reference the task. """
+        working queue. Return task id to reference the task. """
         task_timeout = task_timeout or self.stale_timeout
-        task_id = '{}-{}'.format(uuid.uuid1().hex, task_timeout)
+        task_id = '{}-{}'.format((task_id or uuid.uuid1().hex), task_timeout)
         task_data = self._serializer.dumps(task)
         now = time.time()
         with await self._redis as r:
@@ -105,11 +105,11 @@ class Arque:
         logger.debug(f'En-queued task ID: {task_id}. Data: {task_data}')
         return task_id
 
-    def enqueue_sync(self, task, task_timeout=None, delay=None):
+    def enqueue_sync(self, task, task_id=None, task_timeout=None, delay=None):
         """ Enqueue arbitrary (though serializable) *task* object into
         working queue. Return UUID to reference the task. """
         task_timeout = task_timeout or self.stale_timeout
-        task_id = '{}-{}'.format(uuid.uuid1().hex, task_timeout)
+        task_id = '{}-{}'.format((task_id or uuid.uuid1().hex), task_timeout)
         task_data = self._serializer.dumps(task)
         now = time.time()
         pipe = self._redis.pipeline(transaction=True)
