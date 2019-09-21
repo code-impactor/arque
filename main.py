@@ -3,6 +3,7 @@ import random
 import logging
 import asyncio
 import aioredis
+import time
 from functools import wraps
 from arque import Arque
 
@@ -43,8 +44,9 @@ async def produce_task(loop, redis=None):
     while True:
         for _ in range(1):
             task = {'value': random.randint(0, 99)}
+            task_id = f"custom_{task['value']}_{time.time()}"
             logger.debug('Produced task %s', task)
-            await queue.enqueue(task, task_timeout=10, delay=1)
+            await queue.enqueue(task, task_id=task_id, task_timeout=10, delay=1)
         await asyncio.sleep(1)
 
 
