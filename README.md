@@ -4,9 +4,9 @@ Asyncio Reliable Queue (based on redis)
 Inspired by Tom DeWire's article "Reliable Queueing in Redis (Part 1)" [[1]](#ref1) [[2]](#ref2) and the "torrelque" python module [[3]](#ref3).
 
 #### Features:
-    - Queue with repeats, delays and failed state
+    - Queue with repeats, delays and dead letters
     - Based on asyncio, aioredis
-    - Tested on Python 3.7 and redis '>=3.0.6', '<=5.0.5'
+    - Tested on Python 3.7 and redis server '>=3.0.6', '<=5.0.5'
     
 #### Install:
 ```bash

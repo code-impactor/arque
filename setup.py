@@ -10,7 +10,7 @@ $ twine upload dist/*
 import codecs
 import setuptools
 
-ARQUE_VERSION = '1.0.5'
+ARQUE_VERSION = '1.0.6'
 ARQUE_DOWNLOAD_URL = (
         'https://github.com/code-impactor/arque/releases/tag/' + ARQUE_VERSION
 )
@@ -38,7 +38,7 @@ setuptools.setup(
     download_url=ARQUE_DOWNLOAD_URL,
     keywords=[
         'asyncio', 'redis', 'reliable', 'queue', 'asynchronous', 'python', 'reliable-queue', 'work-queue', 'delay',
-        'delayed', 'jobs', 'delayed-queue'
+        'delayed', 'jobs', 'delayed-queue', 'repeated', 'tasks', 'dead letter', 'failed'
     ],
     install_requires=['aioredis >= 1.2.0'],
     platforms=['Any'],
