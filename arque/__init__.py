@@ -18,6 +18,7 @@ import time
 import hashlib
 import logging
 import aioredis
+from datetime import timedelta
 
 logger = logging.getLogger('arque')
 
@@ -25,6 +26,9 @@ logger = logging.getLogger('arque')
 class Arque:
     stale_timeout = 120
     """ Default timeout for a task in working queue to be considered stale """
+
+    stats_ttl = timedelta(weeks=1).seconds
+    """ Stats doc ttl is 1 week """
 
     requeue_limit = 3
     """ Max attempts to process task """
@@ -55,7 +59,7 @@ class Arque:
     """ asyncio loop """
 
     def __init__(self, redis, loop=None, prefix='arque', serializer=json, sweep_interval=None,
-                 requeue_limit=None, working_limit=None):
+                 requeue_limit=None, working_limit=None, stats_ttl=None):
         self._redis = redis
         self._loop = loop
         self._serializer = serializer
@@ -63,6 +67,7 @@ class Arque:
         self._sweep_interval = sweep_interval or self.sweep_interval
         self._working_limit = working_limit or self.working_limit
         self._requeue_limit = requeue_limit or self.requeue_limit
+        self._stats_ttl = stats_ttl or self.stats_ttl
         self._run_sweep = False
 
     def _get_stats_key(self, task_id):
@@ -95,7 +100,9 @@ class Arque:
         with await self._redis as r:
             pipe = r.multi_exec()
             pipe.hset(self.keys['tasks'], task_id, task_data)
-            pipe.hset(self._get_stats_key(task_id), 'enqueue_time', now)
+            stats_key = self._get_stats_key(task_id)
+            pipe.hset(stats_key, 'enqueue_time', now)
+            pipe.expire(stats_key, self._stats_ttl)
             if delay is None:
                 pipe.lpush(self.keys['pending'], task_id)
             else:
@@ -114,7 +121,9 @@ class Arque:
         now = time.time()
         pipe = self._redis.pipeline(transaction=True)
         pipe.hset(self.keys['tasks'], task_id, task_data)
-        pipe.hset(self._get_stats_key(task_id), 'enqueue_time', now)
+        stats_key = self._get_stats_key(task_id)
+        pipe.hset(stats_key, 'enqueue_time', now)
+        pipe.expire(stats_key, self._stats_ttl)
         if delay is None:
             pipe.lpush(self.keys['pending'], task_id)
         else:
@@ -200,6 +209,7 @@ class Arque:
             stats_key = self._get_stats_key(task_id)
             pipe.hset(stats_key, 'last_requeue_time', now)
             pipe.hincrby(stats_key, 'requeue_count', 1)
+            pipe.expire(stats_key, self._stats_ttl)
             if delay is None:
                 pipe.lpush(self.keys['pending'], task_id)
             else:
