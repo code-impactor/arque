@@ -27,7 +27,7 @@ class Arque:
     stale_timeout = 120
     """ Default timeout for a task in working queue to be considered stale """
 
-    stats_ttl = timedelta(weeks=1).seconds
+    stats_ttl = int(timedelta(weeks=1).total_seconds())
     """ Stats doc ttl is 1 week """
 
     requeue_limit = 3
@@ -55,13 +55,9 @@ class Arque:
     _redis = None
     """ Instance of aioredis connection pool  """
 
-    _loop = None
-    """ asyncio loop """
-
-    def __init__(self, redis, loop=None, prefix='arque', serializer=json, sweep_interval=None,
+    def __init__(self, redis, prefix='arque', serializer=json, sweep_interval=None,
                  requeue_limit=None, working_limit=None, stats_ttl=None):
         self._redis = redis
-        self._loop = loop
         self._serializer = serializer
         self.keys = {k: '{}:{}'.format(prefix, v) for k, v in self.keys.items()}
         self._sweep_interval = sweep_interval or self.sweep_interval
@@ -86,6 +82,7 @@ class Arque:
                 with await self._redis as r:
                     result = await r.eval(script=script, keys=keys, args=args)
             else:
+                logger.exception(e)
                 raise e
 
         return result
@@ -96,7 +93,7 @@ class Arque:
         task_timeout = task_timeout or self.stale_timeout
         task_id = '{}-{}'.format((task_id or uuid.uuid1().hex), task_timeout)
         task_data = self._serializer.dumps(task)
-        now = time.time()
+        now = int(time.time())
         with await self._redis as r:
             pipe = r.multi_exec()
             pipe.hset(self.keys['tasks'], task_id, task_data)
@@ -118,7 +115,7 @@ class Arque:
         task_timeout = task_timeout or self.stale_timeout
         task_id = '{}-{}'.format((task_id or uuid.uuid1().hex), task_timeout)
         task_data = self._serializer.dumps(task)
-        now = time.time()
+        now = int(time.time())
         pipe = self._redis.pipeline(transaction=True)
         pipe.hset(self.keys['tasks'], task_id, task_data)
         stats_key = self._get_stats_key(task_id)
@@ -190,8 +187,8 @@ class Arque:
         """
 
         keys = [self.keys[k] for k in ('pending', 'working', 'tasks', 'failed', 'stats')]
-        args = [task_id, time.time(), self._requeue_limit, self._working_limit]
-        task_id, task_data = await self._call_script(script, keys, args)
+        args = [task_id, int(time.time()), self._requeue_limit, self._working_limit]
+        task_id, task_data = await self._call_script(script=script, keys=keys, args=args)
 
         logger.debug(f'De-queued task ID: {task_id}. Data: {task_data}')
 
@@ -202,11 +199,11 @@ class Arque:
         deferred on given amount of seconds and then the task is put in
         delayed queue. """
 
-        now = time.time()
+        now = int(time.time())
+        stats_key = self._get_stats_key(task_id)
         with await self._redis as r:
             pipe = r.multi_exec()
             pipe.zrem(self.keys['working'], task_id)
-            stats_key = self._get_stats_key(task_id)
             pipe.hset(stats_key, 'last_requeue_time', now)
             pipe.hincrby(stats_key, 'requeue_count', 1)
             pipe.expire(stats_key, self._stats_ttl)
@@ -233,17 +230,34 @@ class Arque:
         """ Return stale tasks from working queue into pending list. Move ready
         deferred tasks into pending list. """
         script = """
+            local function massive_redis_command(command, key, t)
+                local i = 1
+                local temp = {}
+                while i <= #t do
+                    table.insert(temp, t[i+1])
+                    table.insert(temp, t[i])
+                    if #temp >= 1000 then
+                        redis.call(command, key, unpack(temp))
+                        temp = {}
+                    end
+                    i = i+2
+                end
+                if #temp > 0 then
+                    redis.call(command, key, unpack(temp))
+                end
+            end
+
             local function requeue(pending_key, target_key, stats_prefix, now)
                 local task_ids = redis.call('ZRANGEBYSCORE', target_key, 0, now)
                 if #task_ids == 0 then
                     return 0
                 end
-                redis.call('LPUSH', pending_key, unpack(task_ids))
-                redis.call('ZREM', target_key, unpack(task_ids))
+                massive_redis_command('LPUSH', pending_key, task_ids)
+                massive_redis_command('ZREM', target_key, task_ids)
                 local stats_key
                 for _, task_id in ipairs(task_ids) do
                     stats_key = stats_prefix .. ':' .. task_id
-                    redis.call('HSET', stats_key, 'last_requeue_time', now)
+                    redis.call('HSET', stats_key, 'last_sweep_requeue_time', now)
                     redis.call('HINCRBY', stats_key, 'requeue_count', 1)
                 end
                 return #task_ids
@@ -256,9 +270,9 @@ class Arque:
         """
 
         keys = [self.keys[k] for k in ('pending', 'working', 'delayed', 'stats')]
-        args = [time.time()]
-        result = await self._call_script(script, keys, args=args)
-        logger.debug(f'Swept {result} tasks.')
+        args = [int(time.time())]
+        result = await self._call_script(script=script, keys=keys, args=args)
+        logger.info(f'Swept {result} tasks.')
 
         return result
 
@@ -292,5 +306,6 @@ class Arque:
             'last_dequeue_time': float(result.get('last_dequeue_time', 0)) or None,
             'dequeue_count': int(result.get('dequeue_count', 0)),
             'last_requeue_time': float(result.get('last_requeue_time', 0)) or None,
+            'last_sweep_requeue_time': float(result.get('last_sweep_requeue_time', 0)) or None,
             'requeue_count': int(result.get('requeue_count', 0))
         }

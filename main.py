@@ -71,7 +71,6 @@ async def consume_task(loop, redis=None):
 
         if task_id == '__marked_as_failed___':
             print(f'FAILED  ID: {task_id}')
-            await asyncio.sleep(1)
             continue
 
         try:
