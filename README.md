@@ -42,10 +42,10 @@ async def shutdown(signal, loop):
 def aioredis_pool(host='redis://localhost', encoding='utf8'):
     def wrapper(func):
         @wraps(func)
-        async def wrapped(loop, redis=None):
-            redis = await aioredis.create_redis_pool(host, loop=loop, encoding=encoding)
+        async def wrapped():
+            redis = await aioredis.create_redis_pool(host, encoding=encoding)
             try:
-                return await func(loop=loop, redis=redis)
+                return await func(redis=redis)
             finally:
                 redis.close()
                 await redis.wait_closed()
@@ -56,9 +56,9 @@ def aioredis_pool(host='redis://localhost', encoding='utf8'):
 
 
 @aioredis_pool(host='redis://localhost', encoding='utf8')
-async def produce_task(loop, redis=None):
+async def produce_task(redis=None):
     logger.info('Starting producing...')
-    queue = Arque(redis=redis, loop=loop)
+    queue = Arque(redis=redis)
     while True:
         for _ in range(1):
             task = {'value': random.randint(0, 99)}
@@ -74,9 +74,9 @@ async def process(task_data):
 
 
 @aioredis_pool(host='redis://localhost', encoding='utf8')
-async def consume_task(loop, redis=None):
+async def consume_task(redis=None):
     logger.info('Starting consuming...')
-    queue = Arque(redis=redis, loop=loop, working_limit=3)
+    queue = Arque(redis=redis, working_limit=3)
     while True:
         task_id, task_data = await queue.dequeue()
         if task_id == '__not_found__':
@@ -89,7 +89,6 @@ async def consume_task(loop, redis=None):
 
         if task_id == '__marked_as_failed___':
             print(f'FAILED  ID: {task_id}')
-            await asyncio.sleep(1)
             continue
 
         try:
@@ -103,30 +102,30 @@ async def consume_task(loop, redis=None):
 
 
 @aioredis_pool(host='redis://localhost', encoding='utf8')
-async def sweep_task(loop, redis=None):
+async def sweep_task(redis=None):
     logger.info('Starting sweeping...')
-    queue = Arque(redis=redis, loop=loop, sweep_interval=5)
+    queue = Arque(redis=redis, sweep_interval=5)
     await queue.schedule_sweep()
 
 
 @aioredis_pool(host='redis://localhost', encoding='utf8')
-async def stats_task(loop, redis=None):
+async def stats_task(redis=None):
     logger.info('Starting stats...')
-    queue = Arque(redis=redis, loop=loop)
+    queue = Arque(redis=redis)
     while True:
         stats = await queue.get_stats()
         logger.info(stats)
         await asyncio.sleep(5)
 
 
-def create_tasks(loop):
+async def example():
     tasks = []
     for _ in range(5):
-        tasks.append(consume_task(loop))
-    tasks.append(produce_task(loop))
-    tasks.append(sweep_task(loop))
-    tasks.append(stats_task(loop))
-    return tasks
+        tasks.append(consume_task())
+    tasks.append(produce_task())
+    tasks.append(sweep_task())
+    tasks.append(stats_task())
+    await asyncio.gather(*tasks)
 
 
 if __name__ == '__main__':
@@ -136,7 +135,7 @@ if __name__ == '__main__':
     for s in signals:
         loop.add_signal_handler(s, lambda s=s: asyncio.create_task(shutdown(s, loop)))
     try:
-        loop.run_until_complete(asyncio.gather(*create_tasks(loop)))
+        loop.run_until_complete(example())
     finally:
         loop.close()
         logging.info("Successfully shutdown...")
