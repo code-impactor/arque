@@ -1,11 +1,15 @@
 """
-Asyncio Reliable Queue (based on redis)
+Asynchronous  Reliable Queue (based on redis)
 
 Inspired by Tom DeWire' article "Reliable Queueing in Redis (Part 1)" [1] and the "torrelque" python module [2].
 Features:
-    - Queue with repeats, delays and failed state.
-    - Based on asyncio, aioredis.
+    - Asynchronous: based on asyncio and aioredis
+    - Reliable: at any moment task data stored in redis database
+    - Throttling: controls number of tasks in execution
+    - Delayed queue: defers task availability
+    - Dead letters: put task data in failed queue after number of predefined retry attempts
     - Tested on Python 3.7
+    - Used in high load containerized application (managed by kubernetes)
 
 [1] http://blog.bronto.com/engineering/reliable-queueing-in-redis-part-1/
 [2] https://bitbucket.org/saaj/torrelque
@@ -31,7 +35,7 @@ class Arque:
     """ Stats doc ttl is 1 week """
 
     requeue_limit = 3
-    """ Max attempts to process task """
+    """ Max retry attempts to process task """
 
     working_limit = 1000
     """ Max tasks in processing """
@@ -153,7 +157,7 @@ class Arque:
             local pending, working, tasks, failed = unpack(KEYS)
             local task_id = ARGV[1]
             local now = ARGV[2]
-            local max_attempts = tonumber(ARGV[3])
+            local requeue_limit = tonumber(ARGV[3])
             local working_limit = tonumber(ARGV[4])
 
             local working_count = redis.call('ZCARD', working)
@@ -169,10 +173,10 @@ class Arque:
             local task_data = redis.call('HGET', tasks, task_id)
             local stale = now + task_id:match('-([^\-]+)$')
             local stats = KEYS[5] .. ':' .. task_id
-            local attempts = redis.call('HGET', stats, 'requeue_count')
-            local attempts_n = tonumber(attempts)
+            local requeue_count_val = redis.call('HGET', stats, 'requeue_count')
+            local requeue_count_num = tonumber(requeue_count_val)
 
-            if attempts_n ~= nil and attempts_n > max_attempts then
+            if requeue_count_num ~= nil and requeue_count_num >= requeue_limit then
                 redis.call('HDEL', tasks, task_id)
                 redis.call('DEL', stats)
                 redis.call('LPUSH', failed, task_data)
@@ -247,7 +251,7 @@ class Arque:
                 end
             end
 
-            local function requeue(pending_key, target_key, stats_prefix, now)
+            local function requeue(pending_key, target_key, stats_prefix, now, stats_time_key, stats_count_key)
                 local task_ids = redis.call('ZRANGEBYSCORE', target_key, 0, now)
                 if #task_ids == 0 then
                     return 0
@@ -257,8 +261,8 @@ class Arque:
                 local stats_key
                 for _, task_id in ipairs(task_ids) do
                     stats_key = stats_prefix .. ':' .. task_id
-                    redis.call('HSET', stats_key, 'last_sweep_requeue_time', now)
-                    redis.call('HINCRBY', stats_key, 'requeue_count', 1)
+                    redis.call('HSET', stats_key, stats_time_key, now)
+                    redis.call('HINCRBY', stats_key, stats_count_key, 1)
                 end
                 return #task_ids
             end
@@ -266,7 +270,8 @@ class Arque:
             local pending, working, delayed, stats = unpack(KEYS)
             local now = ARGV[1]
             
-            return requeue(pending, working, stats, now) + requeue(pending, delayed, stats, now)
+            return requeue(pending, working, stats, now, 'last_requeue_time', 'requeue_count') + 
+                   requeue(pending, delayed, stats, now, 'last_delayed_pop_time', 'delayed_pop_count')
         """
 
         keys = [self.keys[k] for k in ('pending', 'working', 'delayed', 'stats')]
@@ -306,6 +311,7 @@ class Arque:
             'last_dequeue_time': float(result.get('last_dequeue_time', 0)) or None,
             'dequeue_count': int(result.get('dequeue_count', 0)),
             'last_requeue_time': float(result.get('last_requeue_time', 0)) or None,
-            'last_sweep_requeue_time': float(result.get('last_sweep_requeue_time', 0)) or None,
-            'requeue_count': int(result.get('requeue_count', 0))
+            'requeue_count': int(result.get('requeue_count', 0)),
+            'last_delayed_pop_time': float(result.get('last_delayed_pop_time', 0)) or None,
+            'delayed_pop_count': int(result.get('delayed_pop_count', 0))
         }
