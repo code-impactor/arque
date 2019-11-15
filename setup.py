@@ -38,7 +38,8 @@ setuptools.setup(
     download_url=ARQUE_DOWNLOAD_URL,
     keywords=[
         'asyncio', 'redis', 'reliable', 'queue', 'asynchronous', 'python', 'reliable-queue', 'work-queue', 'delay',
-        'delayed', 'jobs', 'delayed-queue', 'repeated', 'tasks', 'dead letter', 'failed'
+        'delayed', 'jobs', 'delayed-queue', 'repeated', 'tasks', 'dead letter', 'failed', 'throttling',
+        'exactly one message delivery'
     ],
     install_requires=['aioredis >= 1.2.0'],
     platforms=['Any'],

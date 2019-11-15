@@ -4,10 +4,11 @@ Asynchronous  Reliable Queue (based on redis)
 Inspired by Tom DeWire' article "Reliable Queueing in Redis (Part 1)" [1] and the "torrelque" python module [2].
 Features:
     - Asynchronous: based on asyncio and aioredis
-    - Reliable: at any moment task data stored in redis database
+    - Reliable: at any moment task data presents in redis database
     - Throttling: controls number of tasks in execution
     - Delayed queue: defers task availability
     - Dead letters: put task data in failed queue after number of predefined retry attempts
+    - Exactly one message delivery (only 1 consumer gets task from queue)
     - Tested on Python 3.7
     - Used in high load containerized application (managed by kubernetes)
 
